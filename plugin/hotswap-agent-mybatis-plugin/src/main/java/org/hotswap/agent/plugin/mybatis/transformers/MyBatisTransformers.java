@@ -71,6 +71,8 @@ public class MyBatisTransformers {
                 "this." + SRC_FILE_NAME_FIELD + " = " + org.hotswap.agent.util.IOUtils.class.getName() + ".extractFileNameFromInputSource($1);" +
                 "}"
         );
+
+        //{org.hotswap.agent.config.PluginManager.getInstance().getPluginRegistry().initializePlugin("com.sankuai.meituan.oasis.bdf.dal.hotswap.MybatisSpringPlugin", getClass().getClassLoader());}
         CtMethod newMethod = CtNewMethod.make(
                 "public boolean " + REFRESH_DOCUMENT_METHOD + "() {" +
                         "if(this." + SRC_FILE_NAME_FIELD + "!=null) {" +

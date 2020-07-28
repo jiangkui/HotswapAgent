@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <parent>
+        <artifactId>hotswap-agent-aggregator</artifactId>
+        <groupId>org.hotswapagent</groupId>
+        <version>0.0.1-SNAPSHOT</version>
+        <relativePath>../../hotswap-agent-parent/pom.xml</relativePath>
+    </parent>
+    <modelVersion>4.0.0</modelVersion>
+
+    <artifactId>hotswap-agent-mybatis-spring-plugin</artifactId>
+    <properties>
+        <org.mybatis.version>3.5.3</org.mybatis.version>
+        <spring.boot.version>2.1.4.RELEASE</spring.boot.version>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <!--
+                Inf-bom Release Notes：https://km.sankuai.com/page/28122541
+             -->
+            <dependency>
+                <groupId>com.sankuai</groupId>
+                <artifactId>inf-bom</artifactId>
+                <version>1.4.7.3</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.hotswapagent</groupId>
+            <artifactId>hotswap-agent-core</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <!-- zebra 相关 -->
+        <!-- zebra - dao依赖，其内部依赖了mybatis、mybatis-spring-->
+        <dependency>
+            <groupId>com.dianping.zebra</groupId>
+            <artifactId>zebra-dao</artifactId>
+        </dependency>
+        <!--Zebra - 数据源相关依赖-->
+        <dependency>
+            <groupId>com.dianping.zebra</groupId>
+            <artifactId>zebra-api</artifactId>
+            <version>2.10.6</version>
+        </dependency>
+    </dependencies>
+</project>

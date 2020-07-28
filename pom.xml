@@ -5,7 +5,7 @@
 
     <groupId>org.hotswapagent</groupId>
     <artifactId>hotswap-agent-aggregator</artifactId>
-    <version>1.4.2-SNAPSHOT</version>
+    <version>0.0.1-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <name>Hotswap Agent Aggregator</name>
@@ -48,6 +48,7 @@
         <module>plugin/hotswap-agent-mybatis-plugin</module>
         <module>plugin/hotswap-agent-plugins</module>
         <module>hotswap-agent</module>
+        <module>plugin/hotswap-agent-mybatis-spring-plugin</module>
     </modules>
 
     <licenses>
@@ -97,6 +98,21 @@
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>versions-maven-plugin</artifactId>
                 <version>2.1</version>
+            </plugin>
+            <plugin>
+                <artifactId>maven-source-plugin</artifactId>
+                <version>2.4</version>
+                <configuration>
+                    <attach>true</attach>
+                </configuration>
+                <executions>
+                    <execution>
+                        <phase>compile</phase>
+                        <goals>
+                            <goal>jar</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>
