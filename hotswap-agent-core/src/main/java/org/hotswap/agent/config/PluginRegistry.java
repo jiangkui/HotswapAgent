@@ -151,6 +151,9 @@ public class PluginRegistry {
      * Init a plugin (create new plugin instance) in a application classloader.
      * Each classloader may contain only one instance of a plugin.
      *
+     * 在应用程序类加载器中初始化插件（创建新的插件实例）。
+     * 每个类加载器只能包含一个插件实例。
+     *
      * @param pluginClass    class of plugin to instantiate
      * @param appClassLoader target application classloader
      * @return the new plugin instance or null if plugin is disabled.

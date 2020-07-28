@@ -45,7 +45,7 @@ public class HotswapAgent {
      * <p/>
      * Plugin might be disabled in hotswap-agent.properties for application classloaders as well.
      */
-      private static Set<String> disabledPlugins = new HashSet<>();
+    private static Set<String> disabledPlugins = new HashSet<>();
 
     /**
      * Default value for autoHotswap property.
@@ -61,14 +61,27 @@ public class HotswapAgent {
         premain(args, inst);
     }
 
+    /**
+     * fixme jiangkui 从这里开始
+     */
     public static void premain(String args, Instrumentation inst) {
-
+        printOasisPluginBanner();
         LOGGER.info("Loading Hotswap agent {{}} - unlimited runtime class redefinition.", Version.version());
         parseArgs(args);
         fixJboss7Modules();
         PluginManager.getInstance().init(inst);
         LOGGER.debug("Hotswap agent initialized.");
+    }
 
+    private static void printOasisPluginBanner() {
+        String oasisPlugin = "\n" +
+                "   ___    _    ____ ___ ____    ____  _    _   _  ____ ___ _   _ \n" +
+                "  / _ \\  / \\  / ___|_ _/ ___|  |  _ \\| |  | | | |/ ___|_ _| \\ | |\n" +
+                " | | | |/ _ \\ \\___ \\| |\\___ \\  | |_) | |  | | | | |  _ | ||  \\| |\n" +
+                " | |_| / ___ \\ ___) | | ___) | |  __/| |__| |_| | |_| || || |\\  |\n" +
+                "  \\___/_/   \\_\\____/___|____/  |_|   |_____\\___/ \\____|___|_| \\_|\n" +
+                "                                                                 \n";
+        LOGGER.info(oasisPlugin);
     }
 
     public static void parseArgs(String args) {
@@ -145,12 +158,12 @@ public class HotswapAgent {
 
     public static final String HOTSWAP_AGENT_EXPORT_PACKAGES = //
             "org.hotswap.agent.annotation,"//
-            + "org.hotswap.agent.command," //
-            + "org.hotswap.agent.config," //
-            + "org.hotswap.agent.logging,"
-            + "org.hotswap.agent.plugin," //
-            + "org.hotswap.agent.util," //
-            + "org.hotswap.agent.watch," //
-            + "org.hotswap.agent.versions," //
-            + "org.hotswap.agent.javassist";
+                    + "org.hotswap.agent.command," //
+                    + "org.hotswap.agent.config," //
+                    + "org.hotswap.agent.logging,"
+                    + "org.hotswap.agent.plugin," //
+                    + "org.hotswap.agent.util," //
+                    + "org.hotswap.agent.watch," //
+                    + "org.hotswap.agent.versions," //
+                    + "org.hotswap.agent.javassist";
 }

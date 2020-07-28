@@ -58,6 +58,10 @@ public class ProxyReplacerTransformer {
             for (CtClass type : ctMethod.getParameterTypes()) {
                 methodParamTypes.append(type.getName()).append(".class").append(", ");
             }
+            // 对所有的 getBean() 方法（有很多重载的），都加上下面这段代码，貌似都做了代理，但干啥用的？
+            // if(true) {
+            //      return org.hotswap.agent.plugin.spring.getbean.ProxyReplacer#register($0, $_,new Class[]{java.lang.Class.class, java.lang.Object[].class}, $args);
+            // }
             ctMethod.insertAfter("if(true){return org.hotswap.agent.plugin.spring.getbean.ProxyReplacer.register($0, $_,new Class[]{"
                     + methodParamTypes.substring(0, methodParamTypes.length() - 2) + "}, $args);}");
         }

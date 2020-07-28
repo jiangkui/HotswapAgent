@@ -22,16 +22,9 @@ import java.io.IOException;
 import java.lang.instrument.IllegalClassFormatException;
 import java.net.URL;
 import java.security.ProtectionDomain;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Enumeration;
-import java.util.List;
+import java.util.*;
 
-import org.hotswap.agent.annotation.FileEvent;
-import org.hotswap.agent.annotation.Init;
-import org.hotswap.agent.annotation.OnClassLoadEvent;
-import org.hotswap.agent.annotation.OnResourceFileEvent;
-import org.hotswap.agent.annotation.Plugin;
+import org.hotswap.agent.annotation.*;
 import org.hotswap.agent.command.Scheduler;
 import org.hotswap.agent.config.PluginConfiguration;
 import org.hotswap.agent.javassist.CannotCompileException;
@@ -45,10 +38,7 @@ import org.hotswap.agent.plugin.spring.scanner.ClassPathBeanDefinitionScannerTra
 import org.hotswap.agent.plugin.spring.scanner.ClassPathBeanRefreshCommand;
 import org.hotswap.agent.plugin.spring.scanner.XmlBeanDefinitionScannerTransformer;
 import org.hotswap.agent.plugin.spring.scanner.XmlBeanRefreshCommand;
-import org.hotswap.agent.util.HotswapTransformer;
-import org.hotswap.agent.util.IOUtils;
-import org.hotswap.agent.util.PluginManagerInvoker;
-import org.hotswap.agent.util.HaClassFileTransformer;
+import org.hotswap.agent.util.*;
 import org.hotswap.agent.util.classloader.ClassLoaderHelper;
 import org.hotswap.agent.watch.WatchEventListener;
 import org.hotswap.agent.watch.WatchFileEvent;
@@ -235,9 +225,33 @@ public class SpringPlugin {
      *
      * This will override freeze method to init plugin - plugin will be initialized and the configuration
      * remains unfrozen, so bean (re)definition may be done by the plugin.
+     *
+     * 插件初始化是在Spring完成启动后调用的，它是freezeConfiguration。
+     * 这将覆盖init插件的冻结方法-插件将被初始化，并且配置保持未冻结状态，因此可以通过插件完成bean（重新）定义。
      */
     @OnClassLoadEvent(classNameRegexp = "org.springframework.beans.factory.support.DefaultListableBeanFactory")
     public static void register(CtClass clazz) throws NotFoundException, CannotCompileException {
+        /*
+         * {
+         *      setCacheBeanMetadata(false);
+         *      PluginManager.getInstance().getPluginRegistry().initializePlugin("org.hotswap.agent.plugin.spring.SpringPlugin", getClass().getClassLoader());
+         *      try {
+         *          ClassLoader __pluginClassLoader = PluginManager.class.getClassLoader();
+         *          Object __pluginInstance = PluginManager.getInstance().getPlugin(org.hotswap.agent.plugin.spring.SpringPlugin.class.getName(), getClass().getClassLoader());
+         *          Class __pluginClass = __pluginClassLoader.loadClass("org.hotswap.agent.plugin.spring.SpringPlugin");
+         *          Class[] paramTypes = new Class[1];
+         *          paramTypes[0] = __pluginClassLoader.loadClass("java.lang.String");
+         *          java.lang.reflect.Method __callPlugin = __pluginClass.getDeclaredMethod("init", paramTypes);
+         *          Object[] params = new Object[1];
+         *          params[0] = org.springframework.core.SpringVersion.getVersion();
+         *          __callPlugin.invoke(__pluginInstance, params);
+         *      } catch (Exception e) {
+         *          throw new Error(e);
+         *      }
+         * }
+         *
+         * 在 DefaultListableBeanFactory 构造方法之前插入上述代码。
+         */
         StringBuilder src = new StringBuilder("{");
         src.append("setCacheBeanMetadata(false);");
         // init a spring plugin with every appclassloader
@@ -261,15 +275,46 @@ public class SpringPlugin {
         //                  exposedObject = earlySingletonReference;
         //   The waring is because I am not sure what is going on here.
 
+        // 由于性能下降，不能禁用freezeConfiguration，而是在每个bean（重新）定义之后调用freezeConfiguration并清除所有缓存。
+        // 警告-allowRawInjectionDespiteWrapping是不安全的，但是如果没有这个 spring 将无法正确解析循环引用。
+        // 但是，调试器中的AbstractAutowireCapableBeanFactory.doCreateBean（）中的代码始终显示暴露对象== earlySingletonReference，因此一切正常。
+        // if（exposedObject == bean）{
+        //     暴露的对象= earlySingletonReference;
+        // 该警告是因为我不确定这里发生了什么。
+
+        // 在 DefaultListableBeanFactory.freezeConfiguration() 之前插入下面的代码：
+        // org.hotswap.agent.plugin.spring.ResetSpringStaticCaches#resetBeanNamesByType(this); 功能：把 singletonBeanNamesByType 清空了。
+        // setAllowRawInjectionDespiteWrapping(true);
         CtMethod method = clazz.getDeclaredMethod("freezeConfiguration");
         method.insertBefore(
                 "org.hotswap.agent.plugin.spring.ResetSpringStaticCaches.resetBeanNamesByType(this); " +
-                "setAllowRawInjectionDespiteWrapping(true); ");
+                        "setAllowRawInjectionDespiteWrapping(true); ");
+    }
+
+    /**
+     * SpringPlugin 貌似并没有对 注解形式的 Bean 做处理，这里我们自己处理下？
+     * @param ctClass 需要 reload 的 class
+     */
+    @OnClassLoadEvent(classNameRegexp = ".*", events = LoadEvent.REDEFINE, skipSynthetic=false)
+    public static void refreshSpringAnnotationBean(ClassLoader classLoader, CtClass ctClass) {
+        // 只处理 Spring 自动扫描路径下的 Class
+        if (isSpringBasePackagePrefixes(ctClass.getClass().getName())) {
+            LOGGER.info("Spring Bean 修改了，需要重新加载&注册：" + ctClass.getClass().getName());
+            LOGGER.info("重新getBean()");
+            LOGGER.info("循环所有引用，重新注入新的实例。");
+            LOGGER.info("处理 SpringMVC 路径");
+            LOGGER.info("处理 其他相关点。");
+        }
+    }
+
+    private static boolean isSpringBasePackagePrefixes(String name) {
+        return true;
     }
 
     @OnClassLoadEvent(classNameRegexp = "org.springframework.aop.framework.CglibAopProxy")
     public static void cglibAopProxyDisableCache(CtClass ctClass) throws NotFoundException, CannotCompileException {
         CtMethod method = ctClass.getDeclaredMethod("createEnhancer");
+        // setBody : 将方法的内容设置为要写入的代码，当方法被 abstract修饰时，该修饰符被移除；表示不使用 cache？
         method.setBody("{" +
                 "org.springframework.cglib.proxy.Enhancer enhancer = new org.springframework.cglib.proxy.Enhancer();" +
                 "enhancer.setUseCache(false);" +

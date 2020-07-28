@@ -52,6 +52,7 @@ public class MyBatisPlugin {
     @Init
     ClassLoader appClassLoader;
 
+    ///Users/jiangkui/StudyProject/HotswapAgent/plugin/hotswap-agent-mybatis-plugin/target/test-classes/org/hotswap/agent/plugin/mybatis/mybatis-config.xml -> {XMLConfigBuilder@1783}
     Map<String, Object> configurationMap = new HashMap<>();
 
     Command reloadConfigurationCommand =
@@ -62,6 +63,9 @@ public class MyBatisPlugin {
         LOGGER.info("MyBatis plugin initialized.");
     }
 
+    /**
+     * 注册要监听的 xml url
+     */
     public void registerConfigurationFile(String configFile, Object configObject) {
         if (configFile != null && !configurationMap.containsKey(configFile)) {
             LOGGER.debug("MyBatisPlugin - configuration file registered : {}", configFile);
@@ -69,6 +73,9 @@ public class MyBatisPlugin {
         }
     }
 
+    /**
+     * 如果 configuration.xml 或 mapper.xml 有变更，则重新加载 configuration
+     */
     @OnResourceFileEvent(path="/", filter = ".*.xml", events = {FileEvent.MODIFY})
     public void registerResourceListeners(URL url) {
         if (configurationMap.containsKey(url.getPath())) {

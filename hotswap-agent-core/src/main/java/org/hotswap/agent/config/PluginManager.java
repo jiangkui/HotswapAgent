@@ -135,13 +135,16 @@ public class PluginManager {
                 LOGGER.debug("Unable to create default watcher.", e);
             }
         }
+        // fixme jiangkui 监视目录树中内容的修改？
         watcher.run();
 
         if (scheduler == null) {
             scheduler = new SchedulerImpl();
         }
+        // fixme jiangkui 定时任务？
         scheduler.run();
 
+        // fixme jiangkui 加载 org.hotswap.agent.plugin 中所有插件
         pluginRegistry.scanPlugins(getClass().getClassLoader(), PLUGIN_PACKAGE);
 
         LOGGER.debug("Registering transformer ");
@@ -171,8 +174,8 @@ public class PluginManager {
 
         // parent of current classloader (system/bootstrap)
         if (getClass().getClassLoader() != null &&
-            classLoader != null &&
-            classLoader.equals(getClass().getClassLoader().getParent()))
+                classLoader != null &&
+                classLoader.equals(getClass().getClassLoader().getParent()))
             return;
 
         // synchronize ClassLoader patching - multiple classloaders may be patched at the same time
