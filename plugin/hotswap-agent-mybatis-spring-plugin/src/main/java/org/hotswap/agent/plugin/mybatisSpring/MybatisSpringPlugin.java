@@ -127,9 +127,17 @@ public class MybatisSpringPlugin {
      * 6、进阶：annotation 形式的 sql 如何处理？
      * 7、进阶：增加 mapper 方法，如何处理引用相关？（class、bean、等等）
      */
+    // fixme jiangkui 正则路径改为 *.xml 和 *.class
     @OnResourceFileEvent(path="/", filter = ".*.xml", events = {FileEvent.MODIFY})
     public void registerResourceListeners(URL url) {
         try {
+            // fixme jiangkui 大概步骤。
+            // xml 和 annotation 过滤，过滤掉无用的路径。（需要从 Configuration 中一次性搂出所有的 resource），这些才是要监听并处理的。
+            // 判断是 xml 还是 annotation
+            // 分别处理
+            // xml：路径映射匹配（这一步貌似可以省略，Configuration 内的 MappedStatement 是个 map，能根据id覆盖）
+            // annotation：路径映射匹配
+
             LOGGER.info(url.getPath() + "刷新！");
             String source = adapterPath(url);
             Configuration configuration = findConfiguration(source);
