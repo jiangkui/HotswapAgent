@@ -60,7 +60,7 @@ public class MyBatisTransformers {
      *    return false;
      * }
      */
-    @OnClassLoadEvent(classNameRegexp = "org.apache.ibatis.parsing.XPathParser")
+//    @OnClassLoadEvent(classNameRegexp = "org.apache.ibatis.parsing.XPathParser")
     public static void patchXPathParser(CtClass ctClass, ClassPool classPool) throws NotFoundException, CannotCompileException {
         CtClass stringClass = classPool.get("java.lang.String");
         CtField sourceFileField = new CtField(stringClass, SRC_FILE_NAME_FIELD, ctClass);
@@ -135,7 +135,7 @@ public class MyBatisTransformers {
      *    }
      * }
      */
-    @OnClassLoadEvent(classNameRegexp = "org.apache.ibatis.builder.xml.XMLConfigBuilder")
+//    @OnClassLoadEvent(classNameRegexp = "org.apache.ibatis.builder.xml.XMLConfigBuilder")
     public static void patchXMLConfigBuilder(CtClass ctClass, ClassPool classPool) throws NotFoundException, CannotCompileException {
 
         StringBuilder src = new StringBuilder("{");
@@ -185,7 +185,7 @@ public class MyBatisTransformers {
      *     }
      *  }
      */
-    @OnClassLoadEvent(classNameRegexp = "org.apache.ibatis.builder.xml.XMLMapperBuilder")
+//    @OnClassLoadEvent(classNameRegexp = "org.apache.ibatis.builder.xml.XMLMapperBuilder")
     public static void patchXMLMapperBuilder(CtClass ctClass, ClassPool classPool) throws NotFoundException, CannotCompileException {
         StringBuilder src = new StringBuilder("{");
         src.append(PluginManagerInvoker.buildInitializePlugin(MyBatisPlugin.class));

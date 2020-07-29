@@ -46,9 +46,9 @@
         <module>plugin/hotswap-agent-freemarker-plugin</module>
         <module>plugin/hotswap-agent-undertow-plugin</module>
         <module>plugin/hotswap-agent-mybatis-plugin</module>
+        <module>plugin/hotswap-agent-mybatis-spring-plugin</module>
         <module>plugin/hotswap-agent-plugins</module>
         <module>hotswap-agent</module>
-        <module>plugin/hotswap-agent-mybatis-spring-plugin</module>
     </modules>
 
     <licenses>
@@ -98,21 +98,6 @@
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>versions-maven-plugin</artifactId>
                 <version>2.1</version>
-            </plugin>
-            <plugin>
-                <artifactId>maven-source-plugin</artifactId>
-                <version>2.4</version>
-                <configuration>
-                    <attach>true</attach>
-                </configuration>
-                <executions>
-                    <execution>
-                        <phase>compile</phase>
-                        <goals>
-                            <goal>jar</goal>
-                        </goals>
-                    </execution>
-                </executions>
             </plugin>
         </plugins>
     </build>
