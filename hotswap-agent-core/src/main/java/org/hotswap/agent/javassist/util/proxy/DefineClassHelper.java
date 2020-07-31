@@ -291,15 +291,16 @@ public class DefineClassHelper {
     public static Class<?> toClass(Class<?> neighbor, byte[] bcode)
         throws CannotCompileException
     {
-        try {
-            DefineClassHelper.class.getModule().addReads(neighbor.getModule());
-            Lookup lookup = MethodHandles.lookup();
-            Lookup prvlookup = MethodHandles.privateLookupIn(neighbor, lookup);
-            return prvlookup.defineClass(bcode);
-        } catch (IllegalAccessException | IllegalArgumentException e) {
-            throw new CannotCompileException(e.getMessage() + ": " + neighbor.getName()
-                                             + " has no permission to define the class");
-        }
+        throw new UnsupportedOperationException("JDK 8 以上不支持！");
+//        try {
+//            DefineClassHelper.class.getModule().addReads(neighbor.getModule());
+//            Lookup lookup = MethodHandles.lookup();
+//            Lookup prvlookup = MethodHandles.privateLookupIn(neighbor, lookup);
+//            return prvlookup.defineClass(bcode);
+//        } catch (IllegalAccessException | IllegalArgumentException e) {
+//            throw new CannotCompileException(e.getMessage() + ": " + neighbor.getName()
+//                                             + " has no permission to define the class");
+//        }
     }
 
     /**
@@ -313,11 +314,12 @@ public class DefineClassHelper {
     public static Class<?> toClass(Lookup lookup, byte[] bcode)
         throws CannotCompileException
     {
-        try {
-            return lookup.defineClass(bcode);
-        } catch (IllegalAccessException | IllegalArgumentException e) {
-            throw new CannotCompileException(e.getMessage());
-        }
+        throw new UnsupportedOperationException("JDK 8 以上不支持！");
+//        try {
+//            return lookup.defineClass(bcode);
+//        } catch (IllegalAccessException | IllegalArgumentException e) {
+//            throw new CannotCompileException(e.getMessage());
+//        }
     }
 
     /**
@@ -329,9 +331,10 @@ public class DefineClassHelper {
         throws CannotCompileException
     {
         try {
-            Lookup lookup = MethodHandles.lookup();
-            lookup = lookup.dropLookupMode(java.lang.invoke.MethodHandles.Lookup.PRIVATE);
-            return lookup.defineClass(bcode);
+            throw new UnsupportedOperationException("JDK 8 以上不支持！");
+//            Lookup lookup = MethodHandles.lookup();
+//            lookup = lookup.dropLookupMode(java.lang.invoke.MethodHandles.Lookup.PRIVATE);
+//            return lookup.defineClass(bcode);
         }
         catch (Throwable t) {
             throw new CannotCompileException(t);

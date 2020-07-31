@@ -422,7 +422,8 @@ public class Loader extends ClassLoader {
 
     private boolean isDefinedPackage(String name) {
         if (ClassFile.MAJOR_VERSION >= ClassFile.JAVA_9)
-            return getDefinedPackage(name) == null;
+            throw new UnsupportedOperationException("JDK 8 以上不支持！");
+//        return getDefinedPackage(name) == null;
         else
             return getPackage(name) == null;
     }
