@@ -18,6 +18,8 @@
  */
 package org.hotswap.agent.plugin.spring.scanner;
 
+import org.hotswap.agent.config.PluginConfiguration;
+import org.hotswap.agent.config.PluginManager;
 import org.hotswap.agent.logging.AgentLogger;
 import org.hotswap.agent.plugin.spring.ResetBeanPostProcessorCaches;
 import org.hotswap.agent.plugin.spring.SpringPlugin;
@@ -84,6 +86,7 @@ public class XmlBeanDefinitionScannerAgent {
         }
         try {
             xmlBeanDefinitionScannerAgent.reloadBeanFromXml(url);
+            ClassPathBeanDefinitionScannerAgent.reLoadSpringBean ();
         } catch (org.springframework.beans.factory.parsing.BeanDefinitionParsingException e) {
             LOGGER.error("Reloading XML failed: {}", e.getMessage());
         }
@@ -132,6 +135,27 @@ public class XmlBeanDefinitionScannerAgent {
         paths = filePath.split("target/test-classes/");
         if (paths.length == 2) {
             return paths[1];
+        }
+
+        paths = filePath.split("BOOT-INF/classes!/");
+        if (paths.length == 2) {
+            return paths[1];
+        }
+
+        PluginConfiguration pluginConfiguration = PluginManager.getInstance ().getPluginConfiguration ( PluginManager.class.getClassLoader () );
+
+        if(pluginConfiguration!=null){
+            URL[] watchResources = pluginConfiguration.getWatchResources ();
+            if(watchResources != null){
+                for(URL url:watchResources){
+                    String path = url.getPath ();
+                    if(filePath.startsWith ( path )){
+                        filePath = filePath.substring ( path.length () );
+                        return filePath;
+                    }
+                }
+
+            }
         }
 
         LOGGER.error("failed to convert filePath {} to classPath path", filePath);

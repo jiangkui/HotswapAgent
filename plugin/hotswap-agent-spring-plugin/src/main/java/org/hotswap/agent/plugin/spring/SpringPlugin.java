@@ -22,9 +22,16 @@ import java.io.IOException;
 import java.lang.instrument.IllegalClassFormatException;
 import java.net.URL;
 import java.security.ProtectionDomain;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Enumeration;
+import java.util.List;
 
-import org.hotswap.agent.annotation.*;
+import org.hotswap.agent.annotation.FileEvent;
+import org.hotswap.agent.annotation.Init;
+import org.hotswap.agent.annotation.OnClassLoadEvent;
+import org.hotswap.agent.annotation.OnResourceFileEvent;
+import org.hotswap.agent.annotation.Plugin;
 import org.hotswap.agent.command.Scheduler;
 import org.hotswap.agent.config.PluginConfiguration;
 import org.hotswap.agent.javassist.CannotCompileException;
@@ -34,11 +41,15 @@ import org.hotswap.agent.javassist.CtMethod;
 import org.hotswap.agent.javassist.NotFoundException;
 import org.hotswap.agent.logging.AgentLogger;
 import org.hotswap.agent.plugin.spring.getbean.ProxyReplacerTransformer;
+import org.hotswap.agent.plugin.spring.getbean.ReloadSpringBeanTransformer;
 import org.hotswap.agent.plugin.spring.scanner.ClassPathBeanDefinitionScannerTransformer;
 import org.hotswap.agent.plugin.spring.scanner.ClassPathBeanRefreshCommand;
 import org.hotswap.agent.plugin.spring.scanner.XmlBeanDefinitionScannerTransformer;
 import org.hotswap.agent.plugin.spring.scanner.XmlBeanRefreshCommand;
-import org.hotswap.agent.util.*;
+import org.hotswap.agent.util.HotswapTransformer;
+import org.hotswap.agent.util.IOUtils;
+import org.hotswap.agent.util.PluginManagerInvoker;
+import org.hotswap.agent.util.HaClassFileTransformer;
 import org.hotswap.agent.util.classloader.ClassLoaderHelper;
 import org.hotswap.agent.watch.WatchEventListener;
 import org.hotswap.agent.watch.WatchFileEvent;
@@ -51,7 +62,7 @@ import org.hotswap.agent.watch.Watcher;
  */
 @Plugin(name = "Spring", description = "Reload Spring configuration after class definition/change.",
         testedVersions = {"All between 3.0.1 - 5.2.2"}, expectedVersions = {"3x", "4x", "5x"},
-        supportClass = {ClassPathBeanDefinitionScannerTransformer.class, ProxyReplacerTransformer.class, XmlBeanDefinitionScannerTransformer.class})
+        supportClass = {ClassPathBeanDefinitionScannerTransformer.class, ProxyReplacerTransformer.class, XmlBeanDefinitionScannerTransformer.class,ReloadSpringBeanTransformer.class})
 public class SpringPlugin {
     private static AgentLogger LOGGER = AgentLogger.getLogger(SpringPlugin.class);
 

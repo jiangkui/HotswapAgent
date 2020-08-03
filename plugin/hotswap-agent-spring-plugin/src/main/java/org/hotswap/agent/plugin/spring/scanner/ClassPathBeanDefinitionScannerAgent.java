@@ -23,6 +23,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentSkipListSet;
 
 import org.hotswap.agent.logging.AgentLogger;
 import org.hotswap.agent.plugin.spring.ResetBeanPostProcessorCaches;
@@ -62,6 +63,8 @@ public class ClassPathBeanDefinitionScannerAgent {
 
     // fixme jiangkui 这个地方存储了所有的 scanner 包括 zebra 的。
     private static Map<ClassPathBeanDefinitionScanner, ClassPathBeanDefinitionScannerAgent> instances = new HashMap<>();
+
+    private static ConcurrentSkipListSet<String> concurrentSkipListSet = new ConcurrentSkipListSet<String>();
 
     /**
      * Flag to check reload status.
@@ -168,7 +171,7 @@ public class ClassPathBeanDefinitionScannerAgent {
      * @param candidate the candidate to reload
      */
     public void defineBean(BeanDefinition candidate) {
-        synchronized (getClass()) { // TODO sychronize on DefaultListableFactory.beanDefinitionMap?
+        synchronized (ClassPathBeanDefinitionScannerAgent.class) { // TODO sychronize on DefaultListableFactory.beanDefinitionMap?
 
             ScopeMetadata scopeMetadata = this.scopeMetadataResolver.resolveScopeMetadata(candidate);
             candidate.setScope(scopeMetadata.getScopeName());
@@ -181,25 +184,60 @@ public class ClassPathBeanDefinitionScannerAgent {
                 processCommonDefinitionAnnotations((AnnotatedBeanDefinition) candidate);
             }
 
-            removeIfExists(beanName);
-            if (checkCandidate(beanName, candidate)) {
+            try {
+                removeIfExists(beanName);
+                if (checkCandidate(beanName, candidate)) {
 
-                BeanDefinitionHolder definitionHolder = new BeanDefinitionHolder(candidate, beanName);
-                definitionHolder = applyScopedProxyMode(scopeMetadata, definitionHolder, registry);
+                    BeanDefinitionHolder definitionHolder = new BeanDefinitionHolder(candidate, beanName);
+                    definitionHolder = applyScopedProxyMode(scopeMetadata, definitionHolder, registry);
 
-                LOGGER.reload("Registering Spring bean '{}'", beanName);
-                LOGGER.debug("Bean definition '{}'", beanName, candidate);
-                registerBeanDefinition(definitionHolder, registry);
+                    LOGGER.reload("Registering Spring bean '{}'", beanName);
+                    LOGGER.debug("Bean definition '{}'", beanName, candidate);
+                    registerBeanDefinition(definitionHolder, registry);
 
-                DefaultListableBeanFactory bf = maybeRegistryToBeanFactory();
-                if (bf != null)
-                    ResetRequestMappingCaches.reset(bf);
+                    DefaultListableBeanFactory bf = maybeRegistryToBeanFactory();
+                    if (bf != null)
+                        ResetRequestMappingCaches.reset(bf);
 
-                ProxyReplacer.clearAllProxies();
-                freezeConfiguration();
+                    ProxyReplacer.clearAllProxies();
+                    freezeConfiguration();
+                    reLoadSpringBean();
+                }
+            } finally {
+                //doto
             }
         }
+    }
 
+    // fixme jiangkui 这里开始处理 bean 的重新加载
+    // fixme zhangyulong
+    public synchronized static void reLoadSpringBean(){
+        if(concurrentSkipListSet ==null || concurrentSkipListSet.size ()==0) return;
+
+        try {
+            LOGGER.debug ( "重新加载spring bean 开始" );
+
+            for (String beanName:concurrentSkipListSet){
+                LOGGER.debug ( "重新加载spring bean 开始 bean:" + beanName );
+
+                if(instances!=null && instances.size ()>0){
+                    for(ClassPathBeanDefinitionScannerAgent classPathBeanDefinitionScannerAgent: instances.values ()){
+                        DefaultListableBeanFactory defaultListableBeanFactory = maybeRegistryToBeanFactory ( classPathBeanDefinitionScannerAgent.registry );
+                        if(defaultListableBeanFactory != null && defaultListableBeanFactory.containsBeanDefinition ( beanName )){
+                            try {
+                                defaultListableBeanFactory.getBean ( beanName );
+                            } catch (Exception e){
+                                LOGGER.error ( "重新加载spring bean 失败 bean:" + beanName,e );
+
+                            }
+                        }
+                    }
+                }
+                LOGGER.debug ( "重新加载spring bean 成功 bean:" + beanName );
+            }
+        } finally {
+            concurrentSkipListSet.clear ();
+        }
 
     }
 
@@ -222,6 +260,23 @@ public class ClassPathBeanDefinitionScannerAgent {
                 ResetBeanPostProcessorCaches.reset(bf);
             }
         }
+    }
+
+    // fixme jiangkui destroySingleton 时，after 调用这个个方法
+    // fixme zhangyulong
+    public synchronized static void registerReloadSpringBean(String beanName){
+        LOGGER.info ( "注册待reload的springBean:" + beanName );
+        concurrentSkipListSet.add ( beanName );
+    }
+
+
+    private static DefaultListableBeanFactory maybeRegistryToBeanFactory(BeanDefinitionRegistry registry) {
+        if (registry instanceof DefaultListableBeanFactory) {
+            return (DefaultListableBeanFactory) registry;
+        } else if (registry instanceof GenericApplicationContext) {
+            return ((GenericApplicationContext) registry).getDefaultListableBeanFactory();
+        }
+        return null;
     }
 
     private DefaultListableBeanFactory maybeRegistryToBeanFactory() {
