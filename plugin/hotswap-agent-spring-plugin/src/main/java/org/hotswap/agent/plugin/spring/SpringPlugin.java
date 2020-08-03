@@ -291,26 +291,6 @@ public class SpringPlugin {
                         "setAllowRawInjectionDespiteWrapping(true); ");
     }
 
-    /**
-     * SpringPlugin 貌似并没有对 注解形式的 Bean 做处理，这里我们自己处理下？
-     * @param ctClass 需要 reload 的 class
-     */
-    @OnClassLoadEvent(classNameRegexp = ".*", events = LoadEvent.REDEFINE, skipSynthetic=false)
-    public static void refreshSpringAnnotationBean(ClassLoader classLoader, CtClass ctClass) {
-        // 只处理 Spring 自动扫描路径下的 Class
-        if (isSpringBasePackagePrefixes(ctClass.getClass().getName())) {
-            LOGGER.info("Spring Bean 修改了，需要重新加载&注册：" + ctClass.getClass().getName());
-            LOGGER.info("重新getBean()");
-            LOGGER.info("循环所有引用，重新注入新的实例。");
-            LOGGER.info("处理 SpringMVC 路径");
-            LOGGER.info("处理 其他相关点。");
-        }
-    }
-
-    private static boolean isSpringBasePackagePrefixes(String name) {
-        return true;
-    }
-
     @OnClassLoadEvent(classNameRegexp = "org.springframework.aop.framework.CglibAopProxy")
     public static void cglibAopProxyDisableCache(CtClass ctClass) throws NotFoundException, CannotCompileException {
         CtMethod method = ctClass.getDeclaredMethod("createEnhancer");

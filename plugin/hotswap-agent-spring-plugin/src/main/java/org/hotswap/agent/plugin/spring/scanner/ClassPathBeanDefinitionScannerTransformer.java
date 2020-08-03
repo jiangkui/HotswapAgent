@@ -44,6 +44,7 @@ public class ClassPathBeanDefinitionScannerTransformer {
     public static void transform(CtClass clazz, ClassPool classPool) throws NotFoundException, CannotCompileException {
         // 在 ClassPathScanningCandidateComponentProvider#findCandidateComponents 之后追加如下代码。
         //
+        // fixme jiangkui 这里把所有的 scanner 对象和扫描地址都收集了。参见：ClassPathBeanDefinitionScannerAgent 相关代码
         // if (this instanceof org.springframework.context.annotation.ClassPathBeanDefinitionScanner) {
         //      org.hotswap.agent.plugin.spring.scanner.ClassPathBeanDefinitionScannerAgent#getInstance((org.springframework.context.annotation.ClassPathBeanDefinitionScanner)this).registerBasePackage($1);
         // }

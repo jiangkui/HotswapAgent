@@ -60,6 +60,7 @@ import org.springframework.core.type.classreading.MetadataReaderFactory;
 public class ClassPathBeanDefinitionScannerAgent {
     private static AgentLogger LOGGER = AgentLogger.getLogger(ClassPathBeanDefinitionScannerAgent.class);
 
+    // fixme jiangkui 这个地方存储了所有的 scanner 包括 zebra 的。
     private static Map<ClassPathBeanDefinitionScanner, ClassPathBeanDefinitionScannerAgent> instances = new HashMap<>();
 
     /**
