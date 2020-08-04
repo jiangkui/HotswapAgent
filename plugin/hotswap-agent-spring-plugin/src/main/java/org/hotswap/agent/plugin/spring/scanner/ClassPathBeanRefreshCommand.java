@@ -83,7 +83,7 @@ public class ClassPathBeanRefreshCommand extends MergeableCommand {
                 }
             }
 
-            LOGGER.debug("Executing ClassPathBeanDefinitionScannerAgent.refreshClass('{}')", className);
+            LOGGER.debug("Executing ClassPathBeanDefinitionScannerAgent.refreshClass('{}'), basePackage:{}", className, basePackage);
 
             Class<?> clazz = Class.forName("org.hotswap.agent.plugin.spring.scanner.ClassPathBeanDefinitionScannerAgent", true, appClassLoader);
             Method method  = clazz.getDeclaredMethod(
@@ -145,6 +145,26 @@ public class ClassPathBeanRefreshCommand extends MergeableCommand {
     public int hashCode() {
         int result = appClassLoader.hashCode();
         result = 31 * result + className.hashCode();
+        /*
+         * jiangkui 2020年08月04日20:09:32 add，解决：Mapper 热部署时，ZebraClassPathMapperScanner 无法执行的问题。（原因是多个 command hashCode 相同，被合并了）
+         *
+         * 问题：
+         *      在 Zebra 场景中会有 bug，bug如下
+         *          当一个 Mapper 修改后，热部署时，会产生多个 ClassPathBeanRefreshCommand，这些command仅主目录不同，如下：
+         *          Command1 basePackage：com.sankuai.meituan.oasis.bdf
+         *          Command2 basePackage：com.sankuai.meituan.oasis.bdf.dal.dao
+         *
+         * 原因：
+         *      SpringPlugin.registerBasePackage() 时，会有多个 Scanner 注入，如：
+         *          - Spring 主Scanner，扫描 com.sankuai.meituan.oasis.bdf 目录
+         *          - Zebra Scanner，扫描 com.sankuai.meituan.oasis.bdf.dal.dao 目录
+         *
+         * 影响：
+         *      如果被合并，会导致 Command2（ZebraClassPathMapperScanner） 无法执行，而 Mapper 变更时，需要由 Command2（ZebraClassPathMapperScanner）来获取 BeanDefinition，否则会获取不到对应的 BeanDefinition，最终热部署失败。
+         */
+        if (basePackage != null) {
+            result = 31 * result + basePackage.hashCode();
+        }
         return result;
     }
 

@@ -19,22 +19,24 @@
 package org.hotswap.agent.plugin.hotswapper;
 
 import org.hotswap.agent.HotswapAgent;
-import org.hotswap.agent.annotation.FileEvent;
-import org.hotswap.agent.annotation.OnClassFileEvent;
+import org.hotswap.agent.annotation.*;
 import org.hotswap.agent.config.PluginManager;
-import org.hotswap.agent.annotation.Init;
-import org.hotswap.agent.annotation.Plugin;
 import org.hotswap.agent.command.Command;
 import org.hotswap.agent.command.ReflectionCommand;
 import org.hotswap.agent.command.Scheduler;
 import org.hotswap.agent.config.PluginConfiguration;
 import org.hotswap.agent.javassist.CannotCompileException;
+import org.hotswap.agent.javassist.ClassPool;
 import org.hotswap.agent.javassist.CtClass;
+import org.hotswap.agent.javassist.LoaderClassPath;
 import org.hotswap.agent.logging.AgentLogger;
+import org.hotswap.agent.util.IOUtils;
 import org.hotswap.agent.util.PluginManagerInvoker;
 import org.hotswap.agent.util.classloader.*;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -92,6 +94,19 @@ public class HotswapperPlugin {
             reloadMap.put(clazz, ctClass.toBytecode());
         }
         scheduler.scheduleCommand(hotswapCommand, 100, Scheduler.DuplicateSheduleBehaviour.SKIP);
+    }
+
+    @OnResourceFileEvent(path = "/", filter = ".*")
+    public void allResourceChange(ClassLoader appClassLoader, URL url) throws Exception {
+        LOGGER.info("检测到 resource 变更：" + url.getPath());
+        if (url.getPath().endsWith(".class")) {
+            LOGGER.info("是 class 文件，重新加载 class：" + url.getPath());
+
+            ClassPool cp = new ClassPool();
+            cp.appendClassPath(new LoaderClassPath(appClassLoader));
+            CtClass ctClass = cp.makeClass(new ByteArrayInputStream(IOUtils.toByteArray(url.toURI())));
+            watchReload(ctClass, appClassLoader, url);
+        }
     }
 
     /**

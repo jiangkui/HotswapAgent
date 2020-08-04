@@ -19,11 +19,13 @@
 package org.hotswap.agent.plugin.spring.scanner;
 
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+import org.apache.ibatis.session.SqlSessionFactory;
 import org.hotswap.agent.logging.AgentLogger;
 import org.hotswap.agent.plugin.spring.ResetBeanPostProcessorCaches;
 import org.hotswap.agent.plugin.spring.ResetRequestMappingCaches;
@@ -32,13 +34,12 @@ import org.hotswap.agent.plugin.spring.SpringPlugin;
 import org.hotswap.agent.plugin.spring.getbean.ProxyReplacer;
 import org.hotswap.agent.util.PluginManagerInvoker;
 import org.hotswap.agent.util.ReflectionHelper;
+import org.mybatis.spring.SqlSessionTemplate;
 import org.springframework.beans.factory.annotation.AnnotatedBeanDefinition;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.beans.factory.config.BeanDefinitionHolder;
-import org.springframework.beans.factory.support.AbstractBeanDefinition;
-import org.springframework.beans.factory.support.BeanDefinitionRegistry;
-import org.springframework.beans.factory.support.BeanNameGenerator;
-import org.springframework.beans.factory.support.DefaultListableBeanFactory;
+import org.springframework.beans.factory.config.RuntimeBeanReference;
+import org.springframework.beans.factory.support.*;
 import org.springframework.context.annotation.AnnotationConfigUtils;
 import org.springframework.context.annotation.ClassPathBeanDefinitionScanner;
 import org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider;
@@ -51,6 +52,7 @@ import org.springframework.core.io.Resource;
 import org.springframework.core.type.classreading.CachingMetadataReaderFactory;
 import org.springframework.core.type.classreading.MetadataReader;
 import org.springframework.core.type.classreading.MetadataReaderFactory;
+import org.springframework.util.StringUtils;
 
 /**
  * Registers
@@ -151,6 +153,7 @@ public class ClassPathBeanDefinitionScannerAgent {
             return;
         }
 
+        LOGGER.info("执行 ClassPathBeanDefinitionScannerAgent#refreshClass, basePackage:{}", basePackage);
         BeanDefinition beanDefinition = scannerAgent.resolveBeanDefinition(classDefinition);
         if (beanDefinition != null) {
             scannerAgent.defineBean(beanDefinition);
@@ -174,6 +177,8 @@ public class ClassPathBeanDefinitionScannerAgent {
             candidate.setScope(scopeMetadata.getScopeName());
             String beanName = this.beanNameGenerator.generateBeanName(candidate, registry);
 
+            LOGGER.reload("重新定义 SpringBean：" +  beanName);
+
             if (candidate instanceof AbstractBeanDefinition) {
                 postProcessBeanDefinition((AbstractBeanDefinition) candidate, beanName);
             }
@@ -196,11 +201,90 @@ public class ClassPathBeanDefinitionScannerAgent {
                     ResetRequestMappingCaches.reset(bf);
 
                 ProxyReplacer.clearAllProxies();
+
+                zebraProcess(definitionHolder);
                 freezeConfiguration();
             }
         }
+    }
 
+    /**
+     * 针对 zebra 的 scanner 做兼容
+     */
+    private void zebraProcess(BeanDefinitionHolder holder) {
+        if (!scanner.getClass().getName().equals("com.dianping.zebra.dao.mybatis.ZebraClassPathMapperScanner")) {
+            LOGGER.reload("ClassPathBeanDefinitionScannerAgent#zebraProcess, scannerName:{}", scanner.getClass().getName());
+            return;
+        }
 
+        try {
+            GenericBeanDefinition definition = (GenericBeanDefinition) holder.getBeanDefinition();
+            if (LOGGER.isDebugEnabled()) {
+                LOGGER.debug("Creating MapperFactoryBean with name '" + holder.getBeanName() + "' and '"
+                        + definition.getBeanClassName() + "' mapperInterface");
+            }
+
+            // the mapper interface is the original class of the bean
+            // but, the actual class of the bean is MapperFactoryBean
+            definition.getConstructorArgumentValues().addGenericArgumentValue(definition.getBeanClassName());  //https://github.com/mybatis/spring/issues/58
+            definition.setBeanClass(scanner.getClass().getClassLoader().loadClass("com.dianping.zebra.dao.mybatis.ZebraMapperFactoryBean"));
+
+            Object addToConfig = getValue(scanner, "addToConfig", Object.class);
+            String sqlSessionFactoryBeanName = getValue(scanner, "sqlSessionFactoryBeanName", String.class);
+            String sqlSessionTemplateBeanName = getValue(scanner, "sqlSessionTemplateBeanName", String.class);
+            SqlSessionFactory sqlSessionFactory = getValue(scanner, "sqlSessionFactory", SqlSessionFactory.class);
+            SqlSessionTemplate sqlSessionTemplate = getValue(scanner, "sqlSessionFactory", SqlSessionTemplate.class);
+
+            definition.getPropertyValues().add("addToConfig", addToConfig);
+
+            boolean explicitFactoryUsed = false;
+            if (StringUtils.hasText(sqlSessionFactoryBeanName)) {
+                definition.getPropertyValues().add("sqlSessionFactory",
+                        new RuntimeBeanReference(sqlSessionFactoryBeanName));
+                explicitFactoryUsed = true;
+            } else if (sqlSessionFactory != null) {
+                definition.getPropertyValues().add("sqlSessionFactory", sqlSessionFactory);
+                explicitFactoryUsed = true;
+            }
+
+            if (StringUtils.hasText(sqlSessionTemplateBeanName)) {
+                if (explicitFactoryUsed) {
+                    LOGGER.warning("Cannot use both: sqlSessionTemplate and sqlSessionFactory together. sqlSessionFactory is ignored.");
+                }
+                definition.getPropertyValues().add("sqlSessionTemplate",
+                        new RuntimeBeanReference(sqlSessionTemplateBeanName));
+                explicitFactoryUsed = true;
+            } else if (sqlSessionTemplate != null) {
+                if (explicitFactoryUsed) {
+                    LOGGER.warning("Cannot use both: sqlSessionTemplate and sqlSessionFactory together. sqlSessionFactory is ignored.");
+                }
+                definition.getPropertyValues().add("sqlSessionTemplate", sqlSessionTemplate);
+                explicitFactoryUsed = true;
+            }
+
+            if (!explicitFactoryUsed) {
+                if (LOGGER.isDebugEnabled()) {
+                    LOGGER.debug("Enabling autowire by type for MapperFactoryBean with name '" + holder.getBeanName()
+                            + "'.");
+                }
+                definition.setAutowireMode(AbstractBeanDefinition.AUTOWIRE_BY_TYPE);
+            }
+
+            LOGGER.info(" zebra scanner 兼容处理完毕！bean '{}'", holder.getBeanName());
+        } catch (Exception e) {
+            LOGGER.error("对 zebra scanner 兼容处理失败！", e);
+        }
+    }
+
+    private <T> T getValue(ClassPathBeanDefinitionScanner scanner, String fieldName, Class<T> t) throws Exception {
+        try {
+            Field field = scanner.getClass().getDeclaredField(fieldName);
+            field.setAccessible(true);
+            return (T) field.get(scanner);
+        } catch (Exception e) {
+            LOGGER.error("获取 scanner 字段失败！", e.getMessage());
+            throw e;
+        }
     }
 
     /**

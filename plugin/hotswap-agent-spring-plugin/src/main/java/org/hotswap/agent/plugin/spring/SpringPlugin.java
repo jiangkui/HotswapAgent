@@ -121,7 +121,6 @@ public class SpringPlugin {
         final SpringChangesAnalyzer analyzer = new SpringChangesAnalyzer(appClassLoader);
         // v.d.: Force load/Initialize ClassPathBeanRefreshCommand classe in JVM. This is hack, in whatever reason sometimes new ClassPathBeanRefreshCommand()
         //       stays locked inside agent's transform() call. It looks like some bug in JVMTI or JVMTI-debugger() locks handling.
-        ClassPathBeanRefreshCommand fooCmd = new ClassPathBeanRefreshCommand();
         hotswapTransformer.registerTransformer(appClassLoader, getClassNameRegExp(basePackage), new HaClassFileTransformer() {
             @Override
             public byte[] transform(ClassLoader loader, String className, Class<?> classBeingRedefined, ProtectionDomain protectionDomain, byte[] classfileBuffer) throws IllegalClassFormatException {

@@ -68,6 +68,7 @@ public abstract class AbstractNIO2Watcher implements Watcher {
 
     protected WatchService watcher;
     protected final Map<WatchKey, Path> keys;
+    // fixme jiangkui 这里记录了 path 和 对应的监听者
     private final Map<Path, List<WatchEventListener>> listeners = new ConcurrentHashMap<>();
 
     // keep track about which classloader requested which event
