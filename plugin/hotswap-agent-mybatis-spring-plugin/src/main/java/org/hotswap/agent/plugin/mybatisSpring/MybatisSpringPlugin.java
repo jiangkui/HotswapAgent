@@ -30,6 +30,10 @@ public class MybatisSpringPlugin {
 
     @Init
     public void init() {
+//        printBanner();
+    }
+
+    private void printBanner() {
         LOGGER.info("\n" +
                 "  __  ____     ______       _______ _____  _____    _____ _____  _____  _____ _   _  _____   _____  _     _    _  _____ _____ _   _ \n" +
                 " |  \\/  \\ \\   / /  _ \\   /\\|__   __|_   _|/ ____|  / ____|  __ \\|  __ \\|_   _| \\ | |/ ____| |  __ \\| |   | |  | |/ ____|_   _| \\ | |\n" +

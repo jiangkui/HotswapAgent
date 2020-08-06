@@ -18,41 +18,36 @@
  */
 package org.hotswap.agent.plugin.spring.scanner;
 
-import java.io.IOException;
-import java.lang.reflect.Field;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
-
-import org.apache.ibatis.session.SqlSessionFactory;
 import org.hotswap.agent.logging.AgentLogger;
 import org.hotswap.agent.plugin.spring.ResetBeanPostProcessorCaches;
 import org.hotswap.agent.plugin.spring.ResetRequestMappingCaches;
 import org.hotswap.agent.plugin.spring.ResetSpringStaticCaches;
 import org.hotswap.agent.plugin.spring.SpringPlugin;
 import org.hotswap.agent.plugin.spring.getbean.ProxyReplacer;
+import org.hotswap.agent.plugin.spring.scanner.ext.BeanDefinitionPostProcessManager;
 import org.hotswap.agent.util.PluginManagerInvoker;
 import org.hotswap.agent.util.ReflectionHelper;
-import org.mybatis.spring.SqlSessionTemplate;
 import org.springframework.beans.factory.annotation.AnnotatedBeanDefinition;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.beans.factory.config.BeanDefinitionHolder;
-import org.springframework.beans.factory.config.RuntimeBeanReference;
-import org.springframework.beans.factory.support.*;
-import org.springframework.context.annotation.AnnotationConfigUtils;
-import org.springframework.context.annotation.ClassPathBeanDefinitionScanner;
-import org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider;
-import org.springframework.context.annotation.ScannedGenericBeanDefinition;
-import org.springframework.context.annotation.ScopeMetadata;
-import org.springframework.context.annotation.ScopeMetadataResolver;
+import org.springframework.beans.factory.support.AbstractBeanDefinition;
+import org.springframework.beans.factory.support.BeanDefinitionRegistry;
+import org.springframework.beans.factory.support.BeanNameGenerator;
+import org.springframework.beans.factory.support.DefaultListableBeanFactory;
+import org.springframework.context.annotation.*;
 import org.springframework.context.support.GenericApplicationContext;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
 import org.springframework.core.type.classreading.CachingMetadataReaderFactory;
 import org.springframework.core.type.classreading.MetadataReader;
 import org.springframework.core.type.classreading.MetadataReaderFactory;
-import org.springframework.util.StringUtils;
+
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentSkipListSet;
 
 /**
  * Registers
@@ -62,8 +57,9 @@ import org.springframework.util.StringUtils;
 public class ClassPathBeanDefinitionScannerAgent {
     private static AgentLogger LOGGER = AgentLogger.getLogger(ClassPathBeanDefinitionScannerAgent.class);
 
-    // fixme jiangkui 这个地方存储了所有的 scanner 包括 zebra 的。
     private static Map<ClassPathBeanDefinitionScanner, ClassPathBeanDefinitionScannerAgent> instances = new HashMap<>();
+
+    private static ConcurrentSkipListSet<String> concurrentSkipListSet = new ConcurrentSkipListSet<String>();
 
     /**
      * Flag to check reload status.
@@ -171,7 +167,7 @@ public class ClassPathBeanDefinitionScannerAgent {
      * @param candidate the candidate to reload
      */
     public void defineBean(BeanDefinition candidate) {
-        synchronized (getClass()) { // TODO sychronize on DefaultListableFactory.beanDefinitionMap?
+        synchronized (ClassPathBeanDefinitionScannerAgent.class) { // TODO sychronize on DefaultListableFactory.beanDefinitionMap?
 
             ScopeMetadata scopeMetadata = this.scopeMetadataResolver.resolveScopeMetadata(candidate);
             candidate.setScope(scopeMetadata.getScopeName());
@@ -202,89 +198,55 @@ public class ClassPathBeanDefinitionScannerAgent {
 
                 ProxyReplacer.clearAllProxies();
 
-                zebraProcess(definitionHolder);
+                // 扩展点：对 BeanDefinition 做后置处理
+                BeanDefinitionPostProcessManager.applyPostProcessAfterScanned(definitionHolder, scanner);
                 freezeConfiguration();
+                reLoadSpringBean();
             }
         }
     }
 
-    /**
-     * 针对 zebra 的 scanner 做兼容
-     */
-    private void zebraProcess(BeanDefinitionHolder holder) {
-        if (!scanner.getClass().getName().equals("com.dianping.zebra.dao.mybatis.ZebraClassPathMapperScanner")) {
-            LOGGER.reload("ClassPathBeanDefinitionScannerAgent#zebraProcess, scannerName:{}", scanner.getClass().getName());
-            return;
-        }
+    private static void reLoadSpringBean(){
+        if(concurrentSkipListSet ==null || concurrentSkipListSet.size ()==0) return;
 
         try {
-            GenericBeanDefinition definition = (GenericBeanDefinition) holder.getBeanDefinition();
-            if (LOGGER.isDebugEnabled()) {
-                LOGGER.debug("Creating MapperFactoryBean with name '" + holder.getBeanName() + "' and '"
-                        + definition.getBeanClassName() + "' mapperInterface");
-            }
+            LOGGER.info ( "重新加载spring bean 开始" );
 
-            // the mapper interface is the original class of the bean
-            // but, the actual class of the bean is MapperFactoryBean
-            definition.getConstructorArgumentValues().addGenericArgumentValue(definition.getBeanClassName());  //https://github.com/mybatis/spring/issues/58
-            definition.setBeanClass(scanner.getClass().getClassLoader().loadClass("com.dianping.zebra.dao.mybatis.ZebraMapperFactoryBean"));
+            for (String beanName:concurrentSkipListSet){
+                LOGGER.info ( "重新加载spring bean 开始 bean:" + beanName );
 
-            Object addToConfig = getValue(scanner, "addToConfig", Object.class);
-            String sqlSessionFactoryBeanName = getValue(scanner, "sqlSessionFactoryBeanName", String.class);
-            String sqlSessionTemplateBeanName = getValue(scanner, "sqlSessionTemplateBeanName", String.class);
-            SqlSessionFactory sqlSessionFactory = getValue(scanner, "sqlSessionFactory", SqlSessionFactory.class);
-            SqlSessionTemplate sqlSessionTemplate = getValue(scanner, "sqlSessionFactory", SqlSessionTemplate.class);
+                if(instances!=null && instances.size ()>0){
+                    for(ClassPathBeanDefinitionScannerAgent classPathBeanDefinitionScannerAgent: instances.values ()){
+                        DefaultListableBeanFactory defaultListableBeanFactory = maybeRegistryToBeanFactory ( classPathBeanDefinitionScannerAgent.registry );
+                        if(defaultListableBeanFactory != null && defaultListableBeanFactory.containsBeanDefinition ( beanName )){
+                            try {
+                                defaultListableBeanFactory.getBean ( beanName );
+                            } catch (Exception e){
+                                LOGGER.error ( "重新加载spring bean 失败 bean:" + beanName,e );
 
-            definition.getPropertyValues().add("addToConfig", addToConfig);
-
-            boolean explicitFactoryUsed = false;
-            if (StringUtils.hasText(sqlSessionFactoryBeanName)) {
-                definition.getPropertyValues().add("sqlSessionFactory",
-                        new RuntimeBeanReference(sqlSessionFactoryBeanName));
-                explicitFactoryUsed = true;
-            } else if (sqlSessionFactory != null) {
-                definition.getPropertyValues().add("sqlSessionFactory", sqlSessionFactory);
-                explicitFactoryUsed = true;
-            }
-
-            if (StringUtils.hasText(sqlSessionTemplateBeanName)) {
-                if (explicitFactoryUsed) {
-                    LOGGER.warning("Cannot use both: sqlSessionTemplate and sqlSessionFactory together. sqlSessionFactory is ignored.");
+                            }
+                        }
+                    }
                 }
-                definition.getPropertyValues().add("sqlSessionTemplate",
-                        new RuntimeBeanReference(sqlSessionTemplateBeanName));
-                explicitFactoryUsed = true;
-            } else if (sqlSessionTemplate != null) {
-                if (explicitFactoryUsed) {
-                    LOGGER.warning("Cannot use both: sqlSessionTemplate and sqlSessionFactory together. sqlSessionFactory is ignored.");
-                }
-                definition.getPropertyValues().add("sqlSessionTemplate", sqlSessionTemplate);
-                explicitFactoryUsed = true;
+                LOGGER.info ( "重新加载spring bean 成功 bean:" + beanName );
             }
-
-            if (!explicitFactoryUsed) {
-                if (LOGGER.isDebugEnabled()) {
-                    LOGGER.debug("Enabling autowire by type for MapperFactoryBean with name '" + holder.getBeanName()
-                            + "'.");
-                }
-                definition.setAutowireMode(AbstractBeanDefinition.AUTOWIRE_BY_TYPE);
-            }
-
-            LOGGER.info(" zebra scanner 兼容处理完毕！bean '{}'", holder.getBeanName());
-        } catch (Exception e) {
-            LOGGER.error("对 zebra scanner 兼容处理失败！", e);
+        } finally {
+            concurrentSkipListSet.clear ();
         }
     }
 
-    private <T> T getValue(ClassPathBeanDefinitionScanner scanner, String fieldName, Class<T> t) throws Exception {
-        try {
-            Field field = scanner.getClass().getDeclaredField(fieldName);
-            field.setAccessible(true);
-            return (T) field.get(scanner);
-        } catch (Exception e) {
-            LOGGER.error("获取 scanner 字段失败！", e.getMessage());
-            throw e;
+    public synchronized static void registerReloadSpringBean(String beanName){
+        LOGGER.info ( "注册需要 reload 的 springBean，beanName：{}", beanName);
+        concurrentSkipListSet.add ( beanName );
+    }
+
+    private static DefaultListableBeanFactory maybeRegistryToBeanFactory(BeanDefinitionRegistry registry) {
+        if (registry instanceof DefaultListableBeanFactory) {
+            return (DefaultListableBeanFactory) registry;
+        } else if (registry instanceof GenericApplicationContext) {
+            return ((GenericApplicationContext) registry).getDefaultListableBeanFactory();
         }
+        return null;
     }
 
     /**

@@ -34,10 +34,12 @@ import org.hotswap.agent.javassist.CtMethod;
 import org.hotswap.agent.javassist.NotFoundException;
 import org.hotswap.agent.logging.AgentLogger;
 import org.hotswap.agent.plugin.spring.getbean.ProxyReplacerTransformer;
+import org.hotswap.agent.plugin.spring.getbean.ReloadSpringBeanTransformer;
 import org.hotswap.agent.plugin.spring.scanner.ClassPathBeanDefinitionScannerTransformer;
 import org.hotswap.agent.plugin.spring.scanner.ClassPathBeanRefreshCommand;
 import org.hotswap.agent.plugin.spring.scanner.XmlBeanDefinitionScannerTransformer;
 import org.hotswap.agent.plugin.spring.scanner.XmlBeanRefreshCommand;
+import org.hotswap.agent.plugin.spring.scanner.ext.BeanDefinitionPostProcessRegister;
 import org.hotswap.agent.util.*;
 import org.hotswap.agent.util.classloader.ClassLoaderHelper;
 import org.hotswap.agent.watch.WatchEventListener;
@@ -51,7 +53,13 @@ import org.hotswap.agent.watch.Watcher;
  */
 @Plugin(name = "Spring", description = "Reload Spring configuration after class definition/change.",
         testedVersions = {"All between 3.0.1 - 5.2.2"}, expectedVersions = {"3x", "4x", "5x"},
-        supportClass = {ClassPathBeanDefinitionScannerTransformer.class, ProxyReplacerTransformer.class, XmlBeanDefinitionScannerTransformer.class})
+        supportClass = {
+                ClassPathBeanDefinitionScannerTransformer.class,
+                ProxyReplacerTransformer.class,
+                XmlBeanDefinitionScannerTransformer.class,
+                ReloadSpringBeanTransformer.class,
+                BeanDefinitionPostProcessRegister.class
+        })
 public class SpringPlugin {
     private static AgentLogger LOGGER = AgentLogger.getLogger(SpringPlugin.class);
 
